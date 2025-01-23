@@ -12,7 +12,7 @@ versionDate="1/22/25"
 # API Variables #
 # *** Jamf Pro URL ***
 jamfProURL="https://YOURURLHERE.jamfcloud.com"
-# Jamf Pro API Client (with correct Permissions)
+# Jamf Pro API Client (with correct Permissions!)
 apiClientID=""
 # Jamf Pro API Client 'Secret'
 apiClientSecret=""
@@ -28,11 +28,11 @@ superPolicy="super5"
 # Swift Dialog binary FULL location, not advisable to use symlink!
 swiftDialog="/usr/local/bin/dialog"
 # Swift Dialog icon for notifications, follow Swift Dialog wiki for accepted icons
-swiftIcon="ICONHERE.png"
+swiftIcon=""
 # macOS Upgrade Icon
-SequoiaIcon="https://sofa.macadmins.io/assets/Sequoia.png"
+SequoiaIcon="SEQUOIA_ICON_LOCATION.png"
 # Swift Dialog Jamf Pro policy event trigger for machines that do not have Swift Dialog installed. Swift can be installed prior and this will be ignored
-swiftPolicy=""
+swiftDialogURL="https://github.com/swiftDialog/swiftDialog/releases/download/v2.5.5/dialog-2.5.5-4802.pkg"
 # Seconds to look for Profile before exiting, default is 11 minutes, 660
 seconds=660
 # S.U.P.E.R.M.A.N 5 log file
@@ -70,17 +70,65 @@ get_Access_Token() {
     fi
 }
 
-# Check for Swift Dialog, if not found, calls via Jamf Pro Policy 'swiftPolicy'
-dialog_Check() {
-    /bin/echo "* START-UP: Swift Dialog Check *"
+# Checks if Swift Dialog exists and version, if not-existent (or too old), downloads Swift Dialog
+checkSwiftDialog(){
+    echo "STATUS: Checking for Swift Dialog..."
+
     if [[ -e "$swiftDialog" ]]; then
-        /bin/echo "STATUS: Swift Dialog found. Able to prompt."
-            return
+        echo "SWIFT DIALOG! Checking version..."
+        sdVer=$(eval "$swiftDialog" -v)
+        sdVer2=$(echo "$sdVer" | cut -c 1-5)
+        sdURLVer=$(basename "$swiftDialogURL")
+        latestSD="${sdURLVer:7:5}"
+                # checks if Swift Dialog is older than latest
+                if [[ "$sdVer2" < "$latestSD" ]]; then
+                    echo "SWIFT DIALOG: Version too old! ($sdVer) | Downloading newer version: ($latestSD)..."
+                    downloadSwiftDialog
+                else
+                    echo "SWIFT DIALOG! Version PASSED! ($sdVer)"
+                    return
+                fi
     else
-        /bin/echo "** CAUTION: Swift Dialog NOT found! **"
-        /bin/echo "STATUS: Calling Jamf Pro Policy: $swiftPolicy"
-        /usr/local/jamf/bin/jamf policy -event "$swiftPolicy"
-            return
+        echo "$(timeStamp) SWIFT DIALOG: NOT found! Downloading Swift Dialog $latestSD..."
+            downloadSwiftDialog
+                return
+    fi
+}
+
+# downloads Swift Dialog via GitHub
+downloadSwiftDialog(){
+        echo "* SWIFT DIALOG: Flagged for Download! *"
+
+    if [[ -n "$swiftDialogURL" ]]; then
+        echo "SWIFT DIALOG: URL Provided! "
+
+        local filename
+            filename=$(basename "$swiftDialogURL")
+        local temp_file
+            temp_file="/tmp/$filename"
+        previous_umask=$(umask)
+        umask 077
+
+        /usr/bin/curl -Ls "$swiftDialogURL" -o "$temp_file" 2>&1
+            if [[ $? -eq 0 ]]; then
+                echo "SWIFT DIALOG: DOWNLOADED successfully! Installing..."
+                        /usr/sbin/installer -verboseR -pkg "$temp_file" -target / 2>&1
+                            if [[ $? -eq 0 ]]; then
+                                echo "SWIFT DIALOG: INSTALLED!"
+                            else
+                                echo "**** ERROR: SWIFT DIALOG: Unable to instal! Can NOT continue! Exiting... *****"
+                                exit 1
+                            fi
+
+                rm -Rf "${temp_file}" >/dev/null 2>&1
+                umask "${previous_umask}"
+            else
+                echo "**** ERROR: SWIFT DIALOG: Download FAILED!! Can NOT continue! Exiting... *****"
+                exit 1
+            fi
+    else
+        echo "SWIFT DIALOG: ERROR! NO Downlad URL Provided! Exiting..."
+        exit 1
     fi
 }
 
@@ -316,7 +364,7 @@ superTail() {
 ### Main ###
 /bin/echo "Version: $version ($versionDate)"
 
-dialog_Check
+checkSwiftDialog
     dialogBox & sleep 0.2
 get_Access_Token
     jamfInventory
