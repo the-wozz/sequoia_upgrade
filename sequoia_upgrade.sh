@@ -155,9 +155,8 @@ jamfInventory(){
         -H "Authorization: Bearer ${accessToken}" )
 
     # extracts computerID from the inventory json variable
-    computerID=$(/bin/echo "$inventory" | grep -o '"id":*[^"]*' | head -n 1 | sed 's/,*$//g' | cut -f2 -d":")
-    # alternate command (plutil, possibly preferred way) to get the computer ID
-    #computerID=$(/bin/echo "$inventory" | /usr/bin/plutil -extract "computer"."general"."id" raw -)
+    #computerID=$(/bin/echo "$inventory" | grep -o '"id":*[^"]*' | head -n 1 | sed 's/,*$//g' | cut -f2 -d":") #alternate way, works on some machines?
+    computerID=$(/bin/echo "$inventory" | /usr/bin/plutil -extract "computer"."general"."id" raw -)
 
          echo "Computer ID: $computerID"
             if [[ -z "$computerID" ]]; then
